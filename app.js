@@ -6,19 +6,19 @@
    read-only access, enforced by Firestore/Storage security rules
    (not just this file — never trust client-side checks alone).
    ============================================================ */
- 
+
 (function () {
   "use strict";
- 
+
   const hasFirebaseSDK = typeof firebase !== "undefined";
   const isPlaceholder = !hasFirebaseSDK || !window.PORTFOLIO_FIREBASE_CONFIG || /PASTE_/.test((window.PORTFOLIO_FIREBASE_CONFIG || {}).apiKey || "");
- 
+
   if (!hasFirebaseSDK) {
     console.warn("Firebase SDK didn't load (offline, or blocked network) — showing static content only.");
   } else if (isPlaceholder) {
     console.info("Firebase isn't configured yet (firebase-config.js still has placeholder values) — showing static content. See the deployment guide to enable editing.");
   }
- 
+
   let auth = null, db = null, storage = null;
   if (hasFirebaseSDK && !isPlaceholder) {
     try {
@@ -40,16 +40,18 @@
       auth = db = storage = null;
     }
   }
- 
+
   let isAdmin = false;
   let editMode = false;
   let currentUser = null;
- 
+
   /* ---------------- seed data (today's real content) ---------------- */
   const SEED = {
     profile: {
       photoURL: null, // null = keep the baked-in hero photo until admin uploads a new one
       resumeURL: null, // null = keep the baked-in resume until admin uploads a new one
+      tagline: "I write code that untangles messy, real-world problems — from routing traffic more efficiently to catching plagiarism before it slips through. Currently deepening my grip on algorithms, systems and machine learning.",
+      stats: { cgpa: "9.67", leetcode: "100+", codechef: "82", hackathon: "01st" }
     },
     skills: [
       { category: "Languages", subtitle: "Written & comfortable debugging", items: ["Java", "Python", "JavaScript"], order: 1 },
@@ -78,14 +80,19 @@
       { title: "Multithreaded Linux Application Using POSIX Threads and Mutexes", description: "A concurrent systems-programming exercise on Linux, using POSIX threads and mutexes to coordinate shared resources safely across multiple threads.", tags: "C, POSIX threads, Concurrency", repoUrl: "https://github.com/RaghuramReddy205/Multithreaded-Linux-Application-Using-POSIX-Threads-and-Mutexes", order: 5 },
       { title: "OSSP Project", description: "A collaborative operating-systems / software-practice project built with a teammate, applying core OS concepts to a working application.", tags: "Collaborative, Systems", repoUrl: "https://github.com/nikhilkrishna369/OSSP_Project", order: 6 }
     ],
-    experience: []
+    experience: [],
+    achievements: [
+      { value: "1st", desc: "Place at the Novus technical hackathon — designed and shipped a working solution under tight deadlines, with strong problem-solving and teamwork under pressure.", order: 1 },
+      { value: "100+", desc: "Problems solved on LeetCode, building consistency in data structures and algorithmic thinking.", order: 2 },
+      { value: "82", desc: "Problems solved on CodeChef, sharpening competitive programming and problem-solving speed.", order: 3 }
+    ]
   };
- 
+
   /* ---------------- helpers ---------------- */
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
- 
+
   function setAdminUI() {
     document.body.classList.toggle("edit-mode", editMode);
     $$(".admin-only").forEach((el) => { el.style.display = editMode ? "" : "none"; });
@@ -107,22 +114,22 @@
       signOutFab.style.display = "none";
     }
   }
- 
+
   function openModal(id) { $("#" + id).classList.add("open"); }
   function closeModal(id) { $("#" + id).classList.remove("open"); }
   $$("[data-close-modal]").forEach((btn) => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
- 
+
   /* ---------------- auth ---------------- */
   $("#mainFab").addEventListener("click", () => {
     if (!currentUser) { openModal("loginModal"); return; }
     editMode = !editMode;
     setAdminUI();
   });
- 
+
   $("#signOutFab").addEventListener("click", () => {
     auth.signOut();
   });
- 
+
   $("#loginSubmitBtn").addEventListener("click", async () => {
     const email = $("#loginEmail").value.trim();
     const pass = $("#loginPassword").value;
@@ -137,7 +144,7 @@
       errEl.textContent = e.message || "Could not sign in.";
     }
   });
- 
+
   if (auth) {
     auth.onAuthStateChanged((user) => {
       currentUser = user;
@@ -147,23 +154,38 @@
       if (isAdmin) maybeSeed();
     });
   }
- 
+
   /* ---------------- one-time seed (only if collections are empty) ---------------- */
   async function maybeSeed() {
     try {
-      const snap = await db.collection("projects").limit(1).get();
-      if (!snap.empty) return; // already has content, never overwrite
+      const checks = [
+        { name: "skills", data: SEED.skills },
+        { name: "certifications", data: SEED.certifications },
+        { name: "projects", data: SEED.projects },
+        { name: "achievements", data: SEED.achievements }
+      ];
       const batch = db.batch();
-      SEED.skills.forEach((s) => batch.set(db.collection("skills").doc(), s));
-      SEED.certifications.forEach((c) => batch.set(db.collection("certifications").doc(), c));
-      SEED.projects.forEach((p) => batch.set(db.collection("projects").doc(), p));
-      await batch.commit();
-      console.log("Seeded initial content into Firestore.");
+      let anyWrites = false;
+      for (const c of checks) {
+        const snap = await db.collection(c.name).limit(1).get();
+        if (snap.empty) {
+          c.data.forEach((item) => { batch.set(db.collection(c.name).doc(), item); anyWrites = true; });
+        }
+      }
+      const profileDoc = await db.collection("config").doc("profile").get();
+      if (!profileDoc.exists) {
+        batch.set(db.collection("config").doc("profile"), { tagline: SEED.profile.tagline, stats: SEED.profile.stats }, { merge: true });
+        anyWrites = true;
+      }
+      if (anyWrites) {
+        await batch.commit();
+        console.log("Seeded missing content into Firestore.");
+      }
     } catch (e) {
       console.warn("Seeding skipped (likely a permissions issue):", e.message);
     }
   }
- 
+
   /* ---------------- generic entity modal (add/edit) ---------------- */
   function showEntityForm(title, schema, initial, onSave) {
     $("#entityModalTitle").textContent = title;
@@ -201,9 +223,9 @@
     };
     saveBtn.addEventListener("click", handler);
   }
- 
+
   function confirmDelete(msg) { return window.confirm(msg || "Delete this item?"); }
- 
+
   /* ---------------- SKILLS ---------------- */
   function renderSkills(docs) {
     const root = $("#skillsRows");
@@ -225,7 +247,7 @@
       root.appendChild(row);
     });
   }
- 
+
   function editSkill(id, data) {
     showEntityForm(id ? "Edit skill category" : "Add skill category", [
       { key: "category", label: "Category (e.g. Languages)" },
@@ -244,7 +266,7 @@
       });
   }
   $("#addSkillBtn").addEventListener("click", () => editSkill(null, null));
- 
+
   /* ---------------- CERTIFICATIONS ---------------- */
   function renderCertifications(docs) {
     const root = $("#certContainer");
@@ -280,7 +302,7 @@
       root.appendChild(groupEl);
     });
   }
- 
+
   function editCertification(id, data) {
     showEntityForm(id ? "Edit certification" : "Add certification", [
       { key: "name", label: "Certification name" },
@@ -293,7 +315,7 @@
     });
   }
   $("#addCertBtn").addEventListener("click", () => editCertification(null, null));
- 
+
   /* ---------------- PROJECTS ---------------- */
   function renderProjects(docs) {
     const root = $("#projectsList");
@@ -322,7 +344,7 @@
       root.appendChild(el);
     });
   }
- 
+
   function editProject(id, data) {
     showEntityForm(id ? "Edit project" : "Add project", [
       { key: "title", label: "Project title" },
@@ -336,7 +358,7 @@
     });
   }
   $("#addProjectBtn").addEventListener("click", () => editProject(null, null));
- 
+
   /* ---------------- EXPERIENCE ---------------- */
   function renderExperience(docs) {
     const root = $("#experienceList");
@@ -346,7 +368,7 @@
     const hasEntries = docs.length > 0;
     section.style.display = (hasEntries || editMode) ? "" : "none";
     if (dot) dot.style.display = hasEntries ? "" : "none";
- 
+
     docs.sort((a, b) => (a.data.order || 0) - (b.data.order || 0)).forEach(({ id, data }) => {
       const item = document.createElement("div");
       item.className = "tl-item" + (data.current ? " current" : "");
@@ -363,7 +385,7 @@
       });
       root.appendChild(item);
     });
- 
+
     if (!hasEntries && editMode) {
       const hint = document.createElement("p");
       hint.className = "lede";
@@ -372,7 +394,7 @@
       root.appendChild(hint);
     }
   }
- 
+
   function editExperience(id, data) {
     showEntityForm(id ? "Edit role" : "Add role", [
       { key: "role", label: "Role / title" },
@@ -386,8 +408,67 @@
     });
   }
   $("#addExperienceBtn").addEventListener("click", () => editExperience(null, null));
- 
-  /* ---------------- PROFILE (photo + resume) ---------------- */
+
+  /* ---------------- ACHIEVEMENTS ---------------- */
+  function renderAchievements(docs) {
+    const root = $("#achievementsGrid");
+    root.innerHTML = "";
+    docs.sort((a, b) => (a.data.order || 0) - (b.data.order || 0)).forEach(({ id, data }) => {
+      const cell = document.createElement("div");
+      cell.className = "ach-cell";
+      cell.innerHTML = `
+        <div class="big mono">${esc(data.value)}</div>
+        <div class="desc">${esc(data.desc)}</div>
+        <div class="entity-toolbar">
+          <button data-act="edit" title="Edit">&#9998;</button>
+          <button data-act="del" title="Delete">&times;</button>
+        </div>`;
+      cell.querySelector('[data-act="edit"]').addEventListener("click", () => editAchievement(id, data));
+      cell.querySelector('[data-act="del"]').addEventListener("click", async () => {
+        if (confirmDelete("Delete this achievement?")) await db.collection("achievements").doc(id).delete();
+      });
+      root.appendChild(cell);
+    });
+  }
+
+  function editAchievement(id, data) {
+    showEntityForm(id ? "Edit achievement" : "Add achievement", [
+      { key: "value", label: "Big number / label (e.g. 1st, 100+)" },
+      { key: "desc", label: "Description", type: "textarea" }
+    ], data, async (values) => {
+      const payload = { ...values, order: (data && data.order) || Date.now() };
+      if (id) await db.collection("achievements").doc(id).update(payload);
+      else await db.collection("achievements").add(payload);
+    });
+  }
+  $("#addAchievementBtn").addEventListener("click", () => editAchievement(null, null));
+
+  /* ---------------- HERO INTRO + STATS ---------------- */
+  $("#editHeroBtn").addEventListener("click", () => {
+    showEntityForm("Edit intro", [
+      { key: "tagline", label: "Intro text below your name (leave blank to remove it)", type: "textarea" }
+    ], { tagline: $("#heroTagline").textContent }, async (values) => {
+      await db.collection("config").doc("profile").set({ tagline: values.tagline }, { merge: true });
+    });
+  });
+
+  $("#editStatsBtn").addEventListener("click", () => {
+    showEntityForm("Edit stats & CGPA", [
+      { key: "cgpa", label: "CGPA (shown everywhere, e.g. 9.67)" },
+      { key: "leetcode", label: "LeetCode stat (e.g. 100+)" },
+      { key: "codechef", label: "CodeChef stat (e.g. 82)" },
+      { key: "hackathon", label: "Hackathon stat (e.g. 01st)" }
+    ], {
+      cgpa: $("#statCgpa").textContent,
+      leetcode: $("#statLeetcode").textContent,
+      codechef: $("#statCodechef").textContent,
+      hackathon: $("#statHackathon").textContent
+    }, async (values) => {
+      await db.collection("config").doc("profile").set({ stats: values }, { merge: true });
+    });
+  });
+
+  /* ---------------- PROFILE (photo + resume + tagline + stats) ---------------- */
   function renderProfile(data) {
     if (data.photoURL) $("#heroPhoto").src = data.photoURL;
     if (data.resumeURL) {
@@ -395,14 +476,31 @@
       $("#resumeOpenBtn").href = data.resumeURL;
       $("#resumeDownloadBtn").removeAttribute("download"); // remote URL, browser will still offer save
     }
+    if (typeof data.tagline === "string") {
+      $("#heroTagline").textContent = data.tagline;
+      $("#heroTagline").style.display = data.tagline.trim() ? "" : "none";
+    }
+    if (data.stats) {
+      const s = data.stats;
+      if (s.cgpa) {
+        $("#statCgpa").textContent = s.cgpa;
+        $("#heroCgpaVal").textContent = s.cgpa;
+        $("#aboutCgpa").textContent = s.cgpa + " / 10";
+        $("#eduCgpaScore").textContent = "CGPA " + s.cgpa + " / 10";
+        $("#resumeCgpaVal").textContent = s.cgpa + " / 10";
+      }
+      if (s.leetcode) $("#statLeetcode").textContent = s.leetcode;
+      if (s.codechef) $("#statCodechef").textContent = s.codechef;
+      if (s.hackathon) $("#statHackathon").textContent = s.hackathon;
+    }
   }
- 
+
   async function uploadFile(file, path) {
     const ref = storage.ref().child(path);
     await ref.put(file);
     return ref.getDownloadURL();
   }
- 
+
   $("#photoEditBtn").addEventListener("click", () => $("#photoFileInput").click());
   $("#photoFileInput").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -414,7 +512,7 @@
       alert("Could not upload photo: " + err.message);
     }
   });
- 
+
   $("#replaceResumeBtn").addEventListener("click", () => $("#resumeFileInput").click());
   $("#resumeFileInput").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -426,23 +524,26 @@
       alert("Could not upload résumé: " + err.message);
     }
   });
- 
+
   /* ---------------- live listeners (or static fallback) ---------------- */
   function collDocs(snapshot) { return snapshot.docs.map((d) => ({ id: d.id, data: d.data() })); }
- 
+
   if (!db) {
     const withIds = (arr) => arr.map((data, i) => ({ id: "seed-" + i, data }));
     renderSkills(withIds(SEED.skills));
     renderCertifications(withIds(SEED.certifications));
     renderProjects(withIds(SEED.projects));
     renderExperience(withIds(SEED.experience));
+    renderAchievements(withIds(SEED.achievements));
+    renderProfile(SEED.profile);
   } else {
     db.collection("skills").onSnapshot((snap) => renderSkills(collDocs(snap)), (e) => console.warn("skills listener:", e.message));
     db.collection("certifications").onSnapshot((snap) => renderCertifications(collDocs(snap)), (e) => console.warn("certifications listener:", e.message));
     db.collection("projects").onSnapshot((snap) => renderProjects(collDocs(snap)), (e) => console.warn("projects listener:", e.message));
     db.collection("experience").onSnapshot((snap) => renderExperience(collDocs(snap)), (e) => console.warn("experience listener:", e.message));
+    db.collection("achievements").onSnapshot((snap) => renderAchievements(collDocs(snap)), (e) => console.warn("achievements listener:", e.message));
     db.collection("config").doc("profile").onSnapshot((doc) => { if (doc.exists) renderProfile(doc.data()); }, (e) => console.warn("profile listener:", e.message));
   }
- 
+
   setAdminUI();
 })();
