@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://raghuramreddy205.github.io/sitemap.xml
