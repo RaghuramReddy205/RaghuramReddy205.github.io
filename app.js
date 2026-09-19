@@ -6,23 +6,23 @@
    read-only access, enforced by Firestore/Storage security rules
    (not just this file — never trust client-side checks alone).
    ============================================================ */
-
+ 
 (function () {
   "use strict";
-
+ 
   const hasFirebaseSDK = typeof firebase !== "undefined";
-  const isPlaceholder = !hasFirebaseSDK || !window.firebaseConfig || /PASTE_/.test((window.firebaseConfig || {}).apiKey || "");
-
+  const isPlaceholder = !hasFirebaseSDK || !window.PORTFOLIO_FIREBASE_CONFIG || /PASTE_/.test((window.PORTFOLIO_FIREBASE_CONFIG || {}).apiKey || "");
+ 
   if (!hasFirebaseSDK) {
     console.warn("Firebase SDK didn't load (offline, or blocked network) — showing static content only.");
   } else if (isPlaceholder) {
     console.info("Firebase isn't configured yet (firebase-config.js still has placeholder values) — showing static content. See the deployment guide to enable editing.");
   }
-
+ 
   let auth = null, db = null, storage = null;
   if (hasFirebaseSDK && !isPlaceholder) {
     try {
-      firebase.initializeApp(window.firebaseConfig);
+      firebase.initializeApp(window.PORTFOLIO_FIREBASE_CONFIG);
       auth = firebase.auth();
       db = firebase.firestore();
       // Some networks (college/campus wifi, certain ISPs, strict firewalls) silently
@@ -40,11 +40,11 @@
       auth = db = storage = null;
     }
   }
-
+ 
   let isAdmin = false;
   let editMode = false;
   let currentUser = null;
-
+ 
   /* ---------------- seed data (today's real content) ---------------- */
   const SEED = {
     profile: {
@@ -80,12 +80,12 @@
     ],
     experience: []
   };
-
+ 
   /* ---------------- helpers ---------------- */
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
+ 
   function setAdminUI() {
     document.body.classList.toggle("edit-mode", editMode);
     $$(".admin-only").forEach((el) => { el.style.display = editMode ? "" : "none"; });
@@ -107,22 +107,22 @@
       signOutFab.style.display = "none";
     }
   }
-
+ 
   function openModal(id) { $("#" + id).classList.add("open"); }
   function closeModal(id) { $("#" + id).classList.remove("open"); }
   $$("[data-close-modal]").forEach((btn) => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
-
+ 
   /* ---------------- auth ---------------- */
   $("#mainFab").addEventListener("click", () => {
     if (!currentUser) { openModal("loginModal"); return; }
     editMode = !editMode;
     setAdminUI();
   });
-
+ 
   $("#signOutFab").addEventListener("click", () => {
     auth.signOut();
   });
-
+ 
   $("#loginSubmitBtn").addEventListener("click", async () => {
     const email = $("#loginEmail").value.trim();
     const pass = $("#loginPassword").value;
@@ -137,17 +137,17 @@
       errEl.textContent = e.message || "Could not sign in.";
     }
   });
-
+ 
   if (auth) {
     auth.onAuthStateChanged((user) => {
       currentUser = user;
-      isAdmin = !!(user && window.ADMIN_EMAIL && user.email === window.ADMIN_EMAIL);
+      isAdmin = !!(user && window.PORTFOLIO_ADMIN_UID && user.uid === window.PORTFOLIO_ADMIN_UID);
       if (!isAdmin) editMode = false;
       setAdminUI();
       if (isAdmin) maybeSeed();
     });
   }
-
+ 
   /* ---------------- one-time seed (only if collections are empty) ---------------- */
   async function maybeSeed() {
     try {
@@ -163,7 +163,7 @@
       console.warn("Seeding skipped (likely a permissions issue):", e.message);
     }
   }
-
+ 
   /* ---------------- generic entity modal (add/edit) ---------------- */
   function showEntityForm(title, schema, initial, onSave) {
     $("#entityModalTitle").textContent = title;
@@ -201,9 +201,9 @@
     };
     saveBtn.addEventListener("click", handler);
   }
-
+ 
   function confirmDelete(msg) { return window.confirm(msg || "Delete this item?"); }
-
+ 
   /* ---------------- SKILLS ---------------- */
   function renderSkills(docs) {
     const root = $("#skillsRows");
@@ -225,7 +225,7 @@
       root.appendChild(row);
     });
   }
-
+ 
   function editSkill(id, data) {
     showEntityForm(id ? "Edit skill category" : "Add skill category", [
       { key: "category", label: "Category (e.g. Languages)" },
@@ -244,7 +244,7 @@
       });
   }
   $("#addSkillBtn").addEventListener("click", () => editSkill(null, null));
-
+ 
   /* ---------------- CERTIFICATIONS ---------------- */
   function renderCertifications(docs) {
     const root = $("#certContainer");
@@ -280,7 +280,7 @@
       root.appendChild(groupEl);
     });
   }
-
+ 
   function editCertification(id, data) {
     showEntityForm(id ? "Edit certification" : "Add certification", [
       { key: "name", label: "Certification name" },
@@ -293,7 +293,7 @@
     });
   }
   $("#addCertBtn").addEventListener("click", () => editCertification(null, null));
-
+ 
   /* ---------------- PROJECTS ---------------- */
   function renderProjects(docs) {
     const root = $("#projectsList");
@@ -322,7 +322,7 @@
       root.appendChild(el);
     });
   }
-
+ 
   function editProject(id, data) {
     showEntityForm(id ? "Edit project" : "Add project", [
       { key: "title", label: "Project title" },
@@ -336,7 +336,7 @@
     });
   }
   $("#addProjectBtn").addEventListener("click", () => editProject(null, null));
-
+ 
   /* ---------------- EXPERIENCE ---------------- */
   function renderExperience(docs) {
     const root = $("#experienceList");
@@ -346,7 +346,7 @@
     const hasEntries = docs.length > 0;
     section.style.display = (hasEntries || editMode) ? "" : "none";
     if (dot) dot.style.display = hasEntries ? "" : "none";
-
+ 
     docs.sort((a, b) => (a.data.order || 0) - (b.data.order || 0)).forEach(({ id, data }) => {
       const item = document.createElement("div");
       item.className = "tl-item" + (data.current ? " current" : "");
@@ -363,7 +363,7 @@
       });
       root.appendChild(item);
     });
-
+ 
     if (!hasEntries && editMode) {
       const hint = document.createElement("p");
       hint.className = "lede";
@@ -372,7 +372,7 @@
       root.appendChild(hint);
     }
   }
-
+ 
   function editExperience(id, data) {
     showEntityForm(id ? "Edit role" : "Add role", [
       { key: "role", label: "Role / title" },
@@ -386,7 +386,7 @@
     });
   }
   $("#addExperienceBtn").addEventListener("click", () => editExperience(null, null));
-
+ 
   /* ---------------- PROFILE (photo + resume) ---------------- */
   function renderProfile(data) {
     if (data.photoURL) $("#heroPhoto").src = data.photoURL;
@@ -396,13 +396,13 @@
       $("#resumeDownloadBtn").removeAttribute("download"); // remote URL, browser will still offer save
     }
   }
-
+ 
   async function uploadFile(file, path) {
     const ref = storage.ref().child(path);
     await ref.put(file);
     return ref.getDownloadURL();
   }
-
+ 
   $("#photoEditBtn").addEventListener("click", () => $("#photoFileInput").click());
   $("#photoFileInput").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -414,7 +414,7 @@
       alert("Could not upload photo: " + err.message);
     }
   });
-
+ 
   $("#replaceResumeBtn").addEventListener("click", () => $("#resumeFileInput").click());
   $("#resumeFileInput").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -426,10 +426,10 @@
       alert("Could not upload résumé: " + err.message);
     }
   });
-
+ 
   /* ---------------- live listeners (or static fallback) ---------------- */
   function collDocs(snapshot) { return snapshot.docs.map((d) => ({ id: d.id, data: d.data() })); }
-
+ 
   if (!db) {
     const withIds = (arr) => arr.map((data, i) => ({ id: "seed-" + i, data }));
     renderSkills(withIds(SEED.skills));
@@ -443,6 +443,6 @@
     db.collection("experience").onSnapshot((snap) => renderExperience(collDocs(snap)), (e) => console.warn("experience listener:", e.message));
     db.collection("config").doc("profile").onSnapshot((doc) => { if (doc.exists) renderProfile(doc.data()); }, (e) => console.warn("profile listener:", e.message));
   }
-
+ 
   setAdminUI();
 })();
