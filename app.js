@@ -50,8 +50,17 @@
     profile: {
       photoURL: null, // null = keep the baked-in hero photo until admin uploads a new one
       resumeURL: null, // null = keep the baked-in resume until admin uploads a new one
+      eyebrow: "2nd year · CSIT · Koneru Lakshmaiah University",
       tagline: "I write code that untangles messy, real-world problems — from routing traffic more efficiently to catching plagiarism before it slips through. Currently deepening my grip on algorithms, systems and machine learning.",
-      stats: { cgpa: "9.67", leetcode: "100+", codechef: "82", hackathon: "01st" }
+      stats: { cgpa: "9.67", leetcode: "100+", codechef: "82", hackathon: "01st" },
+      about: {
+        bio: "I'm a second-year B.Tech Computer Science and Information Technology student at KL University, currently holding a 9.67 CGPA. My interest in computer science comes from a simple pull: taking a real, messy problem and finding the algorithm or system that quietly resolves it.\n\nMost of what I know, I've learned by building — academic projects that range from route optimisation to concurrent systems programming, alongside a steady habit of solving problems on LeetCode, CodeChef, Codeforces and HackerRank. I'm dedicated, quick to pick up new tools, and I care more about understanding a problem deeply than shipping something that only looks finished.",
+        basedIn: "Hyderabad, Telangana",
+        studying: "B.Tech, CSIT — KL University",
+        year: "2nd year (2025 – 2029)",
+        languages: "English, Telugu, Hindi",
+        softSkills: "Quick learning, Adaptability, Leadership, Teamwork & collaboration, Communication, Responsibility & discipline"
+      }
     },
     skills: [
       { category: "Languages", subtitle: "Written & comfortable debugging", items: ["Java", "Python", "JavaScript"], order: 1 },
@@ -173,8 +182,14 @@
         }
       }
       const profileDoc = await db.collection("config").doc("profile").get();
-      if (!profileDoc.exists) {
-        batch.set(db.collection("config").doc("profile"), { tagline: SEED.profile.tagline, stats: SEED.profile.stats }, { merge: true });
+      const existingProfile = profileDoc.exists ? profileDoc.data() : {};
+      const profilePatch = {};
+      if (!("eyebrow" in existingProfile)) profilePatch.eyebrow = SEED.profile.eyebrow;
+      if (!("tagline" in existingProfile)) profilePatch.tagline = SEED.profile.tagline;
+      if (!("stats" in existingProfile)) profilePatch.stats = SEED.profile.stats;
+      if (!("about" in existingProfile)) profilePatch.about = SEED.profile.about;
+      if (Object.keys(profilePatch).length) {
+        batch.set(db.collection("config").doc("profile"), profilePatch, { merge: true });
         anyWrites = true;
       }
       if (anyWrites) {
@@ -446,9 +461,41 @@
   /* ---------------- HERO INTRO + STATS ---------------- */
   $("#editHeroBtn").addEventListener("click", () => {
     showEntityForm("Edit intro", [
+      { key: "eyebrow", label: "Small line above your name (e.g. '2nd year · CSIT · ...')" },
       { key: "tagline", label: "Intro text below your name (leave blank to remove it)", type: "textarea" }
-    ], { tagline: $("#heroTagline").textContent }, async (values) => {
-      await db.collection("config").doc("profile").set({ tagline: values.tagline }, { merge: true });
+    ], { eyebrow: $("#heroEyebrow").textContent, tagline: $("#heroTagline").textContent }, async (values) => {
+      await db.collection("config").doc("profile").set({ eyebrow: values.eyebrow, tagline: values.tagline }, { merge: true });
+    });
+  });
+
+  $("#editAboutBtn").addEventListener("click", () => {
+    const currentBio = Array.from($("#aboutBioContainer").querySelectorAll("p")).map((p) => p.textContent).join("\n\n");
+    const currentSkills = Array.from($("#aboutSoftSkills").querySelectorAll("span")).map((s) => s.textContent).join(", ");
+    showEntityForm("Edit about section", [
+      { key: "bio", label: "Bio (separate paragraphs with a blank line)", type: "textarea" },
+      { key: "basedIn", label: "Based in" },
+      { key: "studying", label: "Studying" },
+      { key: "year", label: "Year" },
+      { key: "languages", label: "Languages" },
+      { key: "softSkills", label: "Soft skills, comma separated" }
+    ], {
+      bio: currentBio,
+      basedIn: $("#aboutBasedIn").textContent,
+      studying: $("#aboutStudying").textContent,
+      year: $("#aboutYear").textContent,
+      languages: $("#aboutLanguages").textContent,
+      softSkills: currentSkills
+    }, async (values) => {
+      await db.collection("config").doc("profile").set({
+        about: {
+          bio: values.bio,
+          basedIn: values.basedIn,
+          studying: values.studying,
+          year: values.year,
+          languages: values.languages,
+          softSkills: values.softSkills
+        }
+      }, { merge: true });
     });
   });
 
@@ -476,9 +523,38 @@
       $("#resumeOpenBtn").href = data.resumeURL;
       $("#resumeDownloadBtn").removeAttribute("download"); // remote URL, browser will still offer save
     }
+    if (typeof data.eyebrow === "string" && data.eyebrow.trim()) {
+      $("#heroEyebrow").textContent = data.eyebrow;
+    }
     if (typeof data.tagline === "string") {
       $("#heroTagline").textContent = data.tagline;
       $("#heroTagline").style.display = data.tagline.trim() ? "" : "none";
+    }
+    if (data.about) {
+      const a = data.about;
+      if (a.bio) {
+        const container = $("#aboutBioContainer");
+        container.innerHTML = "";
+        a.bio.split(/\n\s*\n/).forEach((para) => {
+          if (!para.trim()) return;
+          const p = document.createElement("p");
+          p.textContent = para.trim();
+          container.appendChild(p);
+        });
+      }
+      if (a.basedIn) $("#aboutBasedIn").textContent = a.basedIn;
+      if (a.studying) $("#aboutStudying").textContent = a.studying;
+      if (a.year) $("#aboutYear").textContent = a.year;
+      if (a.languages) $("#aboutLanguages").textContent = a.languages;
+      if (a.softSkills) {
+        const skillsRoot = $("#aboutSoftSkills");
+        skillsRoot.innerHTML = "";
+        a.softSkills.split(",").map((s) => s.trim()).filter(Boolean).forEach((skill) => {
+          const span = document.createElement("span");
+          span.textContent = skill;
+          skillsRoot.appendChild(span);
+        });
+      }
     }
     if (data.stats) {
       const s = data.stats;
