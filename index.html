@@ -1622,7 +1622,7 @@
         <section class="hero" id="top" style="border-bottom:1px solid var(--line);">
             <div class="parallax-grid" data-depth="1.6"></div>
             <div class="hero-content">
-                <div class="hero-eyebrow" data-depth="-0.3">2nd year · CSIT · Koneru Lakshmaiah University</div>
+                <div class="hero-eyebrow" id="heroEyebrow" data-depth="-0.3">2nd year · CSIT · Koneru Lakshmaiah University</div>
                 <h1>Raghuram<br><em>Reddy</em></h1>
                 <p class="hero-role" id="heroTagline">I write code that untangles messy, real-world problems — from routing traffic more
                     efficiently to catching plagiarism before it slips through. Currently deepening my grip on
@@ -1672,8 +1672,10 @@
                 <h2>About</h2>
                 <div class="rule"></div>
             </div>
+            <button type="button" class="add-btn admin-only" id="editAboutBtn" style="display:none; margin-top:-24px; margin-bottom:24px;">Edit about section</button>
             <div class="about-grid">
                 <div class="about-copy">
+                    <div id="aboutBioContainer">
                     <p>I'm a second-year <strong>B.Tech Computer Science and Information Technology</strong> student at
                         KL University, currently holding a <strong>9.67 CGPA</strong>. My interest in computer science
                         comes from a simple pull: taking a real, messy problem and finding the algorithm or system that
@@ -1683,7 +1685,8 @@
                         LeetCode, CodeChef, Codeforces and HackerRank. I'm dedicated, quick to pick up new tools, and I
                         care more about understanding a problem deeply than shipping something that only looks finished.
                     </p>
-                    <div class="softskills">
+                    </div>
+                    <div class="softskills" id="aboutSoftSkills">
                         <span>Quick learning</span><span>Adaptability</span><span>Leadership</span>
                         <span>Teamwork &amp; collaboration</span><span>Communication</span><span>Responsibility &amp;
                             discipline</span>
@@ -1692,15 +1695,15 @@
                 <div class="about-side">
                     <dl>
                         <dt>Based in</dt>
-                        <dd>Hyderabad, Telangana</dd>
+                        <dd id="aboutBasedIn">Hyderabad, Telangana</dd>
                         <dt>Studying</dt>
-                        <dd>B.Tech, CSIT — KL University</dd>
+                        <dd id="aboutStudying">B.Tech, CSIT — KL University</dd>
                         <dt>Year</dt>
-                        <dd>2nd year (2025 – 2029)</dd>
+                        <dd id="aboutYear">2nd year (2025 – 2029)</dd>
                         <dt>CGPA</dt>
                         <dd id="aboutCgpa">9.67 / 10</dd>
                         <dt>Languages</dt>
-                        <dd>English, Telugu, Hindi</dd>
+                        <dd id="aboutLanguages">English, Telugu, Hindi</dd>
                         <dt>Email</dt>
                         <dd><a href="mailto:raghuramreddy565@gmail.com">raghuramreddy565@gmail.com</a></dd>
                         <dt>Phone</dt>
